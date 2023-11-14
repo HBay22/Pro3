@@ -12,24 +12,24 @@
 /* #define rate */
 #define SAMPLE_RATE (44100)
 #define FRAMES_PER_BUFFER (1024)
-#define NUM_SECONDS (5)
-
-
-/* Select sample format. */
-#define PA_SAMPLE_TYPE paFloat32        //Slet?
-typedef float SAMPLE;                   //Slet?
-#define SAMPLE_SILENCE (0.0f)           //slet? måske????
-
+#define NUM_SECONDS (2)
 
 typedef struct
 {
     int testCounter = 0;
     int frameIndex; /* Index into sample array. */
     int maxFrameIndex;
-    SAMPLE *recordedSamples;            //SLET
-} paTestData;
+} 
+paTestData;
 
-void genkendDTMFtoner(double stor, double lille){
+static void checkErr(PaError err){
+    if(err != paNoError){
+        std::cout << "PortAudio error " << Pa_GetErrorText(err) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+double genkendDTMFtoner(double stor, double lille){
     double at = 35; //Tilladt afvigelse
     std::vector<double> freq{1209, 1336, 1477, 1633, 679, 770, 852, 941};
 
@@ -58,10 +58,10 @@ void genkendDTMFtoner(double stor, double lille){
         if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "Tone: A" << std::endl;}
         if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "Tone: B" << std::endl;}
         if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "Tone: C" << std::endl;}
-        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "Tone: D" << std::endl;}
+        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "Tone: D" << std::endl; return 16;}
     }
 
-
+    return 0;
 }
 
 static int recordCallback(const void *inputBuffer, void *outputBuffer,
@@ -73,25 +73,13 @@ static int recordCallback(const void *inputBuffer, void *outputBuffer,
     paTestData *data = (paTestData *)userData; //unødvendigt med "data"
 
     long framesToCalc;
-    int finished;
+    int finished = paContinue;
     unsigned long framesLeft = data->maxFrameIndex - data->frameIndex;
 
     (void)outputBuffer; /* Prevent unused variable warnings. */ //Disse skal ikke retunere noget. Vi bruger dem ikke. 
     (void)timeInfo;
     (void)statusFlags;
     (void)userData;
-
-/*Når der mangler færre end framesPerBuffer (1024) værdier at bliver optaget/behandlet, så sætter den framesToCalc = framesLeft,
-hvilket betyder, at den blot mangler framesLeft frames, hvorefter optagelsen er slut (finished = paComplete).
-Hvis den ikke er færdig, så sætter den bare "framesToCalc" til størrelse på bufferen, som den så kan optage/behandle. */
-    if (framesLeft < framesPerBuffer){
-        framesToCalc = framesLeft;
-        finished = paComplete; 
-    }
-    else{
-        framesToCalc = framesPerBuffer; 
-        finished = paContinue;
-    }
 
 //En pointer til addressen for inputbufferen (den optagne lyd) i formatet en double.
     double *in = (double*)inputBuffer; 
@@ -117,13 +105,17 @@ Hvis den ikke er færdig, så sætter den bare "framesToCalc" til størrelse på
     double storsteFrekvens = (double)storsteAmplitude * SAMPLE_RATE / FRAMES_PER_BUFFER/2; //HVOR DIVIDERE MED TO????
     double andenFrekvens = (double)andenAmplitude * SAMPLE_RATE / FRAMES_PER_BUFFER/2;
 
-    std::cout << "Nummer: " << data->testCounter << std::endl;
+    // std::cout << "Nummer: " << data->testCounter << std::endl;
     genkendDTMFtoner(storsteFrekvens, andenFrekvens);
-    std::cout << "storsteFrekvens: " << storsteFrekvens << std::endl;
-    std::cout << "andenFrekvens:    " << andenFrekvens << std::endl;
-    std::cout << std::endl;
+    // std::cout << "storsteFrekvens: " << storsteFrekvens << std::endl;
+    // std::cout << "andenFrekvens:    " << andenFrekvens << std::endl;
+    // std::cout << std::endl;
     data->testCounter++;
     
+    if(genkendDTMFtoner(storsteFrekvens, andenFrekvens) == 16){
+        finished = paComplete;
+    }
+
 //Stop FFT.
     fftw_destroy_plan(plan);
     fftw_free(out);
@@ -133,8 +125,7 @@ Hvis den ikke er færdig, så sætter den bare "framesToCalc" til størrelse på
 //Opdaterer "frameIndex" med antallet af frames der er blevet optaget. 
     data->frameIndex += framesToCalc;  //SLET?
 
-//Retunerer finished, som enten retunere "paContinue", hvis den skal forsætte med at optage...
-//eller den retunere "paComplete", hvis den er færdig med at optage... 
+//Retunerer finished, som enten retunere "paContinue" (forsæt optagelse) eller "paComplete" (færdig med optagelse).
     return finished;
 }
 
@@ -148,43 +139,21 @@ int main(void)
     PaStream *stream;
     PaError err = paNoError;
     paTestData data;
-    int i;
-    int totalFrames;
-    int numBytes;
-    SAMPLE max, val;
-    double average;
-
-//SLET MÅSKE
-    data.maxFrameIndex = totalFrames = NUM_SECONDS * SAMPLE_RATE; /* Record for a few seconds. */ //MAX
-    data.frameIndex = 0; //starter ved frameIndex 0
-    numBytes = totalFrames * sizeof(SAMPLE); //numbytes = antallet af samples * størrelsen på en sample.
-    data.recordedSamples = (SAMPLE *)malloc(numBytes); /* From now on, recordedSamples is initialised. */ //Allokerer plads i et array på størrelse numBytes
-    if (data.recordedSamples == NULL){ //Error tjek
-        printf("Could not allocate record array.\n");
-        goto done;
-    }
-
-    for (i = 0; i < totalFrames; i++){ //Sætter alle værdier til nul i hele array'et            //SLET??
-        data.recordedSamples[i] = 0;
-    } 
-//SLET MÅSKE HER TIL
 
     err = Pa_Initialize();
-    if (err != paNoError)
-        goto done;
+    checkErr(err);
 
     inputParameters.device = Pa_GetDefaultInputDevice(); /* default input device */
     if (inputParameters.device == paNoDevice){
         fprintf(stderr, "Error: No default input device.\n");
-        goto done;
     }
+    checkErr(err);
 
     inputParameters.channelCount = 1; /* Mono input */
-    inputParameters.sampleFormat = PA_SAMPLE_TYPE; // Sample format er float
+    inputParameters.sampleFormat = paFloat32; // Sample format er float
     inputParameters.suggestedLatency = Pa_GetDeviceInfo(inputParameters.device)->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = NULL;
 
-    /* Record some audio. -------------------------------------------- */
     err = Pa_OpenStream( 
         &stream,
         &inputParameters,
@@ -194,35 +163,24 @@ int main(void)
         paClipOff, /* we won't output out of range samples so don't bother clipping them */
         recordCallback,
         &data);
-    if (err != paNoError)
-        goto done;
+    checkErr(err);
 
     err = Pa_StartStream(stream);
-    if (err != paNoError)
-        goto done;
-    printf("\n=== Now recording!! ===\n");
-    fflush(stdout);
+    checkErr(err);
+
+    std::cout << "\n=== Now recording!! ===\n" << std::endl;
 
     while ((err = Pa_IsStreamActive(stream)) == 1){ //Optager intil array er udfyldt
         Pa_Sleep(500); //Sover i 0,5 sekunder.
     }
-
-    if (err < 0)
-        goto done;
+    checkErr(err);
 
     err = Pa_CloseStream(stream);
-    if (err != paNoError)
-        goto done;
+    checkErr(err);
 
-    std::cout << "\n === SLUT ===" << std::endl;
-done:
+    std::cout << "\n === Done recording!! ===" << std::endl;
+
     Pa_Terminate();
-    if (err != paNoError)
-    {
-        fprintf(stderr, "An error occurred while using the portaudio stream\n");
-        fprintf(stderr, "Error number: %d\n", err);
-        fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(err));
-        err = 1; /* Always return 0 or 1, but no other return codes. */
-    }
+
     return err;
 }
