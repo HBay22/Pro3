@@ -1,44 +1,50 @@
-EXEC_capture = cppaudiocapture
-EXEC_play = cppaudioplay
-EXEC_play_record = cpprecordplay
-EXEC_fft = fft_program  # Name of the FFTW-based program
+.PHONY: all clean
 
-CLIB = -I./lib/portaudio/include ./lib/portaudio/lib/.libs/libportaudio.a -lrt -lasound -ljack -pthread
+CC:= g++-11
 
-# Add the FFTW-related flags and libraries
-CLIB += $(FFTW_LIBS)
+CFLAGS = -std=c++11 -Wno-deprecated-enum-enum-conversion -O2
+# CFLAGS += `pkg-config --cflags portaudio` 
+# LDFLAGS = `pkg-config --libs portaudio`
+	# Additional include directories for PortAudio
+CFLAGS += -I./lib/portaudio/include 
+	# Libraries for PortAudio, rt, asound, jack, and pthread
+LDFLAGS += ./lib/portaudio/lib/.libs/libportaudio.a -lrt -lasound -ljack -pthread
+LDFLAGS += -lfftw3 #include fftw3
 
-# Define the FFTW_LIBS variable to specify FFTW library and flags
-FFTW_LIBS = -lfftw3 -lm
 
-$(EXEC_capture): main.cpp
-	g++ -o $@ $^ $(CLIB)
 
-$(EXEC_play): play.cpp
-	g++ -o $@ $^ $(CLIB)
 
-$(EXEC_play_record): main1.cpp
-	g++ -o $@ $^ $(CLIB)
+SOURCES := $(wildcard *.cpp)
+OBJECTS := $(patsubst %.cpp,%.o,$(SOURCES))
+DEPENDS := $(patsubst %.cpp,%.d,$(SOURCES))
 
-# Define the compilation target for the FFTW-based program
-$(EXEC_fft): fft.cpp
-	g++ -o $@ $^ $(CLIB) $(FFTW_LIBS)  # Add the FFTW_LIBS variable here
+all: main
+
+clean:
+	$(RM) $(OBJECTS) $(DEPENDS) main
+#	$(RM) $(OBJECTS) $(DEPENDS) main audio_data.csv
+
+-include $(DEPENDS)
+
+# Make object files
+%.o: %.cpp Makefile
+	$(CC) $(WARNING) $(CFLAGS) -MMD -MP -c $< -o $@
+
+# Linking the executable from the object files
+main: $(OBJECTS)
+	$(CC) $^ $(LDFLAGS) -o $@
+	./main
 
 install-deps:
 	mkdir -p lib
-
+	
 	curl https://files.portaudio.com/archives/pa_stable_v190700_20210406.tgz | tar -zx -C lib
 	cd lib/portaudio && ./configure && $(MAKE) -j
-
 .PHONY: install-deps
 
 uninstall-deps:
 	cd lib/portaudio && $(MAKE) uninstall
 	rm -rf lib/portaudio
-
 .PHONY: uninstall-deps
 
-clean:
-	rm -f $(EXEC_capture) $(EXEC_play) $(EXEC_play_record) $(EXEC_fft)  # Add the FFTW program to the clean target
-
-.PHONY: clean
+# CLIB = -I./lib/portaudio/include ./lib/portaudio/lib/.libs/libportaudio.a -lrt -lasound -ljack -pthread
