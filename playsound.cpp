@@ -2,25 +2,19 @@
 #include <stdio.h>
 #include <math.h>
 #include "portaudio.h"
-#include <vector>
+
+#include <fstream>
+#include <string>
 
 #define SAMPLE_RATE (8000)
-#define NUM_SECONDS (2)
 #define TABLE_SIZE (8000)
 
-const float amplitude = 0.5;
-std::vector<double> freq{1209.0,1336.0,1477.0,1633.0,679.0,770.0,852.0,941.0};
 
-// den skal kunne tage en besked og omdanne til binære tal, og sende det videre vha lyd. 
-// fx et a bliver omdannet til 0000 0001.
-
-typedef struct
-{
-    float sine1[TABLE_SIZE];
-    float sine2[TABLE_SIZE];
+typedef struct{
+    float dtmf[16][TABLE_SIZE];
+    unsigned int dmtfValg;
     unsigned int phase;
-    char user_input;
-} paTestData;
+} paData;
 
 static void checkErr(PaError err){
     if(err != paNoError){
@@ -35,115 +29,20 @@ static int audioCallback(const void* inputBuffer, void* outputBuffer,
                          PaStreamCallbackFlags statusFlags,
                          void* userData)
 {
-    paTestData* data = (paTestData*)userData;
-    float* out = (float*)outputBuffer;  
+    paData* data = (paData*)userData;
+    float* out = (float*)outputBuffer;
 
     (void)timeInfo;
     (void)statusFlags;
     (void)inputBuffer;
 
-    static unsigned long i = 0;
-    for( i = 0; i < framesPerBuffer; i++){
-        switch(data->user_input){
-            case '1':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
+    static unsigned long i;
+    for (i = 0; i < framesPerBuffer; i++){
 
-            case '2':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '3':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case 'A': case 'a':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '4':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '5':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '6':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case 'B': case 'b':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '7':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '8':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case '9': 
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case 'C': case 'c':
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-             case '*': 
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-             case '0': 
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-             case '#': 
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            case 'D': 
-            *out++ = data->sine1[data->phase] + data->sine2[data->phase];
-            data->phase +=  1;
-            if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
-            break;
-
-            default : 
-            std::cout << "Unrecognized input" << std::endl;
-        }
+        *out++ = data->dtmf[data->dmtfValg][data->phase];
+        
+        data->phase +=  1;
+        if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
     }
 
     return paContinue;
@@ -151,166 +50,29 @@ static int audioCallback(const void* inputBuffer, void* outputBuffer,
 
 int main(void)
 {
-    
-    char user_input;
-
-    while(1){
-    std::cout << "Enter a DTMF key (or q to quit): ";
-    std::cin >> user_input;
-
-    if(user_input == 'q'){
-        break;
-    }
-   
-
     PaStreamParameters outputParameters;
     PaStream* stream;
     PaError err;
-    paTestData data;
-
-    //Sets default DTMF tone to 1
-    data.user_input = '1';
+    paData data;
 
 
-    printf("PortAudio Test: Mixing two sine waves. SR = %d\n", SAMPLE_RATE);
+    float freqRow[4] = {1209,1336,1477,1633};
+    float freqcol[4] = {679,770,852,941};
+    const float amplitude = 0.5;
 
-    static unsigned int i = 0;
-
-    // DTMF tone generation
-    switch(user_input){
-        case '1':
-        //DTMF tone 1
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[4] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[0] * i / SAMPLE_RATE);
+    float sin1, sin2 = 0;
+    int j =0;
+    for(int l = 0; l < 4; l++){
+        for(int k = 0; k < 4; k++){
+            for (int i = 0; i < TABLE_SIZE; i++){
+                sin1 = amplitude * sin(2 * M_PI * freqRow[k] * i / SAMPLE_RATE);
+                sin2 = amplitude * sin(2 * M_PI * freqcol[l] * i / SAMPLE_RATE);
+                data.dtmf[j][i] = sin1 + sin2;
+            }
+            j++;
         }
-        break;
-        
-        case '2':
-        //DTMF tone 2
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[4] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[1] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '3':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[4] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[2] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case 'A': case 'a':
-        //DTMF tone A
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[4] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[3] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '4':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[5] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[0] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '5':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[5] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[1] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '6':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[5] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[2] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case 'B': case 'b':
-        //DTMF tone A
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[5] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[3] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '7':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[6] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[0] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '8':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[6] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[1] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '9':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[6] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[2] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case 'C': case 'c':
-        //DTMF tone A
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[6] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[3] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '*':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[7] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[0] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '0':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[7] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[1] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case '#':
-        //DTMF tone 3
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[7] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[2] * i / SAMPLE_RATE);
-        }
-        break;
-
-        case 'D': case 'd':
-        //DTMF tone A
-        for (i = 0; i < TABLE_SIZE; i++){
-        data.sine1[i] = amplitude * sin(2 * M_PI * freq[7] * i / SAMPLE_RATE);
-        data.sine2[i] = amplitude * sin(2 * M_PI * freq[3] * i / SAMPLE_RATE);
-        }
-        break;
-
-        default : 
-        std::cout << "Unrecognized input" << std::endl;
-        
     }
-
+    
     data.phase = 0;
 
     err = Pa_Initialize();
@@ -338,14 +100,16 @@ int main(void)
         &data);
     checkErr(err);
 
-    //afspiller lyden?
     err = Pa_StartStream(stream);
     checkErr(err);
-
     
-    printf("Playing for %d seconds.\n", NUM_SECONDS);
-    Pa_Sleep(NUM_SECONDS * 1000);
-   
+    int sequence[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+
+    for(int i = 0; i < sizeof(sequence)/sizeof(sequence[0]); i++){ // looper igennem sekvensen
+        data.dmtfValg = sequence[i];
+        Pa_Sleep(1000); //hvor lang tid lyden spiller.
+    } 
+
     err = Pa_StopStream(stream);
     checkErr(err);
 
@@ -355,9 +119,5 @@ int main(void)
     Pa_Terminate();
     printf("Test finished.\n");
 
-        std::cout << "sine2[" << i << "] = " << data.sine2[i] << std::endl;
-        std::cout << "sine1[" << i << "] = " << data.sine1[i] << std::endl;
-
-    }
     return 0;
 }
