@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <iostream>
 #include <string>
 
@@ -7,61 +5,55 @@
 
 #include <vector>
 #include "fftw3.h"
-#include <complex.h>
+#include <complex>
 
-/* #define rate */
 #define SAMPLE_RATE (44100)
 #define FRAMES_PER_BUFFER (1024)
-#define NUM_SECONDS (2)
 
-typedef struct
-{
+typedef struct{
     int testCounter = 0;
-    int frameIndex; /* Index into sample array. */
-    int maxFrameIndex;
-} 
-paTestData;
+    int finished = paContinue;
+} paTestData;
 
 static void checkErr(PaError err){
     if(err != paNoError){
-        std::cout << "PortAudio error " << Pa_GetErrorText(err) << std::endl;
+        std::cout << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
         exit(EXIT_FAILURE);
     }
 }
 
-double genkendDTMFtoner(double stor, double lille){
+void genkendDTMFtoner(double stor, double lille, paTestData *data){ 
     double at = 35; //Tilladt afvigelse
     std::vector<double> freq{1209, 1336, 1477, 1633, 679, 770, 852, 941};
 
     if(freq[0]-at < stor && freq[0]+at > stor){
-        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "Tone: 1" << std::endl;}
-        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "Tone: 4" << std::endl;}
-        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "Tone: 7" << std::endl;}
-        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "Tone: *" << std::endl;}
+        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "1" << std::endl;}
+        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "4" << std::endl;}
+        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "7" << std::endl;}
+        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "*" << std::endl;}
     }
 
     if(freq[1]-at < stor && freq[1]+at > stor){
-        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "Tone: 2" << std::endl;}
-        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "Tone: 5" << std::endl;}
-        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "Tone: 8" << std::endl;}
-        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "Tone: 0" << std::endl;}
+        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "2" << std::endl;}
+        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "5" << std::endl;}
+        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "8" << std::endl;}
+        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "0" << std::endl;}
     }
 
     if(freq[2]-at < stor && freq[2]+at > stor){
-        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "Tone: 3" << std::endl;}
-        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "Tone: 6" << std::endl;}
-        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "Tone: 8" << std::endl;}
-        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "Tone: #" << std::endl;}
+        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "3" << std::endl;}
+        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "6" << std::endl;}
+        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "9" << std::endl;}
+        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "#" << std::endl;}
     }
 
     if(freq[3]-at < stor && freq[3]+at > stor){
-        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "Tone: A" << std::endl;}
-        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "Tone: B" << std::endl;}
-        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "Tone: C" << std::endl;}
-        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "Tone: D" << std::endl; return 16;}
-    }
+        if (freq[4]-at < lille && freq[4]+at > lille){std::cout << "A" << std::endl;}
+        if (freq[5]-at < lille && freq[5]+at > lille){std::cout << "B" << std::endl;}
+        if (freq[6]-at < lille && freq[6]+at > lille){std::cout << "C" << std::endl;}
+        if (freq[7]-at < lille && freq[7]+at > lille){std::cout << "D" << std::endl; data->finished = paComplete;}
 
-    return 0;
+    }
 }
 
 static int recordCallback(const void *inputBuffer, void *outputBuffer,
@@ -72,70 +64,58 @@ static int recordCallback(const void *inputBuffer, void *outputBuffer,
 {
     paTestData *data = (paTestData *)userData; //unødvendigt med "data"
 
-    long framesToCalc;
-    int finished = paContinue;
-    unsigned long framesLeft = data->maxFrameIndex - data->frameIndex;
-
     (void)outputBuffer; /* Prevent unused variable warnings. */ //Disse skal ikke retunere noget. Vi bruger dem ikke. 
     (void)timeInfo;
     (void)statusFlags;
     (void)userData;
 
-//En pointer til addressen for inputbufferen (den optagne lyd) i formatet en double.
+/*En pointer til addressen for inputbufferen (den optagne lyd) i formatet en double.*/
     double *in = (double*)inputBuffer; 
 
-//FFT kommer her
-    fftw_complex *out; //standard fftw commando
+/*FFT*/
+    fftw_complex *out;
     out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * (FRAMES_PER_BUFFER / 2 + 1)); //allocere memory til vores output. Rimlig standard kommando
     fftw_plan plan = fftw_plan_dft_r2c_1d(FRAMES_PER_BUFFER, in, out, FFTW_ESTIMATE); //laver en plan, vi bruger estimate siden patient og mesaure ikke virker lige pt.
     fftw_execute(plan); //gør fft'en. Nu er out fyldt med data som er transformet af fft'en
 
-//Find de to største amplituder
-    int storsteAmplitude = -1; //største amplitude
-    int andenAmplitude = -1; //anden største amplitude
+/*Find de to største frekvenser*/
+    int storsteAmplitude = -1;
+    int andenAmplitude = -1;
 
-//Loop'er igennem dem...
     for(int i = 0; i < FRAMES_PER_BUFFER/2 + 1; i++){ //Kun igennem halvdelen (/2) pga spejlning i resultatet.
         if(out[i][0] * out[i][0] + out[i][1] * out[i][1] > out[storsteAmplitude][0] * out[storsteAmplitude][0] + out[storsteAmplitude][1] * out[storsteAmplitude][1]){ //magnitude, hvor kvadratroden er "sparet" væk
             andenAmplitude = storsteAmplitude;
             storsteAmplitude = i;
-        } //Tror den fungere bedre, da den ikke break'er, men den forsætter gennem hele datasættet, så den stopper ved første lejlighed ligesom som den anden....
+        }
     }
 
-    double storsteFrekvens = (double)storsteAmplitude * SAMPLE_RATE / FRAMES_PER_BUFFER/2; //HVOR DIVIDERE MED TO????
+    double storsteFrekvens = (double)storsteAmplitude * SAMPLE_RATE / FRAMES_PER_BUFFER/2; //Vi dividere med 2 pga. spejlning af resultatet.
     double andenFrekvens = (double)andenAmplitude * SAMPLE_RATE / FRAMES_PER_BUFFER/2;
 
+/*Printer*/
     // std::cout << "Nummer: " << data->testCounter << std::endl;
-    genkendDTMFtoner(storsteFrekvens, andenFrekvens);
+    genkendDTMFtoner(storsteFrekvens, andenFrekvens, data);
     // std::cout << "storsteFrekvens: " << storsteFrekvens << std::endl;
     // std::cout << "andenFrekvens:    " << andenFrekvens << std::endl;
     // std::cout << std::endl;
     data->testCounter++;
     
-    if(genkendDTMFtoner(storsteFrekvens, andenFrekvens) == 16){
-        finished = paComplete;
-    }
-
-//Stop FFT.
+/*Stop FFT*/    
     fftw_destroy_plan(plan);
     fftw_free(out);
     fftw_cleanup();
 
-
-//Opdaterer "frameIndex" med antallet af frames der er blevet optaget. 
-    data->frameIndex += framesToCalc;  //SLET?
-
-//Retunerer finished, som enten retunere "paContinue" (forsæt optagelse) eller "paComplete" (færdig med optagelse).
-    return finished;
+/*Retunerer finished, som enten retunere "paContinue" (forsæt optagelse) eller "paComplete" (færdig med optagelse).*/
+    return data->finished;    
 }
 
 
-/*******************************************************************/
-int main(void);
+
+/*MAIN:*/
 int main(void)
 {
-    PaStreamParameters inputParameters,
-        outputParameters;
+    PaStreamParameters inputParameters;
+
     PaStream *stream;
     PaError err = paNoError;
     paTestData data;
@@ -171,7 +151,7 @@ int main(void)
     std::cout << "\n=== Now recording!! ===\n" << std::endl;
 
     while ((err = Pa_IsStreamActive(stream)) == 1){ //Optager intil array er udfyldt
-        Pa_Sleep(500); //Sover i 0,5 sekunder.
+        Pa_Sleep(10);
     }
     checkErr(err);
 
