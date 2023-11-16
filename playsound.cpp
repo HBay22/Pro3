@@ -12,7 +12,7 @@
 
 
 typedef struct{
-    float dtmf[16][TABLE_SIZE];
+    float dtmf[17][TABLE_SIZE];
     unsigned int dmtfValg;
     unsigned int phase;
 } paData;
@@ -37,6 +37,9 @@ static int audioCallback(const void* inputBuffer, void* outputBuffer,
     for (i = 0; i < framesPerBuffer; i++){
 
         *out++ = data->dtmf[data->dmtfValg][data->phase];
+        if(data->dmtfValg == 16){
+            *out++ = 0.0f;
+        }
         data->phase +=  1;
         if (data->phase >= TABLE_SIZE) data->phase -= TABLE_SIZE;
     }
@@ -100,12 +103,28 @@ int main(void)
     Pa_StartStream(stream);
     
     std::vector<int> sequence = {5,5,6,8,8,6,5,4,3,3,4,5};
+/*
+    while(1){
+        int i;
+        data.dmtfValg = sequence[i];
+        Pa_Sleep(100);
+        i++;
+        if (i>sequence.size()){
+            break;
+        }
+        data.dmtfValg = 0;
+        usleep(500*1000);
+    }*/
 
+   
     for(int i = 0; i < sequence.size(); i++){ // looper igennem sekvensen
         data.dmtfValg = sequence[i];
-        Pa_Sleep(200); //hvor lang tid lyden spiller.
+        Pa_Sleep(100); //hvor lang tid lyden spiller.
+        data.dmtfValg = 16;
+        Pa_Sleep(10);
         
     } 
+    
 
     Pa_StopStream(stream);
     
