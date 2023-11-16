@@ -12,7 +12,7 @@
 
 
 typedef struct{
-    float dtmf[17][TABLE_SIZE];
+    float dtmf[16][TABLE_SIZE];
     unsigned int dmtfValg;
     unsigned int phase;
 } paData;
@@ -102,27 +102,12 @@ int main(void)
 
     Pa_StartStream(stream);
     
-    std::vector<int> sequence = {5,5,6,8,8,6,5,4,3,3,4,5};
-/*
-    while(1){
-        int i;
-        data.dmtfValg = sequence[i];
-        Pa_Sleep(100);
-        i++;
-        if (i>sequence.size()){
-            break;
-        }
-        data.dmtfValg = 0;
-        usleep(500*1000);
-    }*/
+    std::vector<int> sequence = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,2,3,3,4,5,6,6,7,5,5,4,12,12,12,11,10,10,1,1,1,2,3,4,5,6,7,8,9,9,9,9};
 
    
     for(int i = 0; i < sequence.size(); i++){ // looper igennem sekvensen
         data.dmtfValg = sequence[i];
-        Pa_Sleep(100); //hvor lang tid lyden spiller.
-        data.dmtfValg = 16;
-        Pa_Sleep(10);
-        
+        usleep(20*1000); //hvor lang tid lyden spiller.
     } 
     
 
