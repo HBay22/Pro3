@@ -2,8 +2,9 @@
 #include <stdio.h>
 #include <math.h>
 #include "portaudio.h"
-
+#include <vector>
 #include <fstream>
+#include <unistd.h>
 #include <string>
 
 #define SAMPLE_RATE (8000)
@@ -16,12 +17,6 @@ typedef struct{
     unsigned int phase;
 } paData;
 
-static void checkErr(PaError err){
-    if(err != paNoError){
-        std::cout << "PortAudio error " << Pa_GetErrorText(err) << std::endl;
-        exit(EXIT_FAILURE);
-    }
-}
 
 static int audioCallback(const void* inputBuffer, void* outputBuffer,
                          unsigned long framesPerBuffer,
@@ -36,13 +31,14 @@ static int audioCallback(const void* inputBuffer, void* outputBuffer,
     (void)statusFlags;
     (void)inputBuffer;
 
+
+    //Sammensætter og gør lyden klar til afspildning via *out++
     static unsigned long i;
     for (i = 0; i < framesPerBuffer; i++){
 
         *out++ = data->dtmf[data->dmtfValg][data->phase];
-        
         data->phase +=  1;
-        if( data->phase >= TABLE_SIZE ) data->phase -= TABLE_SIZE; //fjerner skrætten
+        if (data->phase >= TABLE_SIZE) data->phase -= TABLE_SIZE;
     }
 
     return paContinue;
@@ -52,14 +48,15 @@ int main(void)
 {
     PaStreamParameters outputParameters;
     PaStream* stream;
-    PaError err;
     paData data;
 
-
+    // DTMF frekvenser
     float freqRow[4] = {1209,1336,1477,1633};
     float freqcol[4] = {679,770,852,941};
     const float amplitude = 0.5;
 
+    // Udregner DTMF tonerne vha. for loop, og gemmer dem i data.dtmf
+    //Udregner dem som 1..2..3..A..4 Osv...
     float sin1, sin2 = 0;
     int j =0;
     for(int l = 0; l < 4; l++){
@@ -75,8 +72,8 @@ int main(void)
     
     data.phase = 0;
 
-    err = Pa_Initialize();
-    checkErr(err);
+   Pa_Initialize();
+    
 
     outputParameters.device = Pa_GetDefaultOutputDevice();
     if (outputParameters.device == paNoDevice){
@@ -89,7 +86,7 @@ int main(void)
     outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
     outputParameters.hostApiSpecificStreamInfo = NULL;
 
-    err = Pa_OpenStream(
+        Pa_OpenStream(
         &stream,
         NULL,                 // No input
         &outputParameters,
@@ -98,26 +95,26 @@ int main(void)
         paClipOff,             // Don't clip out-of-range samples
         audioCallback,
         &data);
-    checkErr(err);
+   
 
-    err = Pa_StartStream(stream);
-    checkErr(err);
+    Pa_StartStream(stream);
     
-    int sequence[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+    std::vector<int> sequence = {5,5,6,8,8,6,5,4,3,3,4,5};
 
-    for(int i = 0; i < sizeof(sequence)/sizeof(sequence[0]); i++){ // looper igennem sekvensen
+    for(int i = 0; i < sequence.size(); i++){ // looper igennem sekvensen
         data.dmtfValg = sequence[i];
-        Pa_Sleep(1000); //hvor lang tid lyden spiller.
+        Pa_Sleep(200); //hvor lang tid lyden spiller.
+        
     } 
 
-    err = Pa_StopStream(stream);
-    checkErr(err);
+    Pa_StopStream(stream);
+    
 
-    err = Pa_CloseStream(stream);
-    checkErr(err);
+    Pa_CloseStream(stream);
+    
 
     Pa_Terminate();
-    printf("Test finished.\n");
-
     return 0;
 }
+
+//afspiller nu lyd nemt, men stadig med pops. (ved ikke fix, evt spørg vejleder.)
