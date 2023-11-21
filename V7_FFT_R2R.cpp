@@ -13,6 +13,8 @@ using namespace std;
 
 /*Variable*/
 typedef struct{
+    double *out;
+    fftw_plan plan;
     int testCounter = 0;
     int finished = paContinue;
     vector<char> freqVals;
@@ -86,17 +88,16 @@ static int recordCallback(const void *inputBuffer, void *outputBuffer,
     double *in = (double*)inputBuffer; 
 
 /*FFT*/
-    double *out;
-    out = (double *)malloc(sizeof(double) * FRAMES_PER_BUFFER); //allocere memory til vores output.
-    fftw_plan plan = fftw_plan_r2r_1d(FRAMES_PER_BUFFER, in, out, FFTW_R2HC, FFTW_ESTIMATE); //laver en plan, vi bruger estimate siden patient og mesaure ikke virker lige pt.
-    fftw_execute(plan); //gør fft'en. Nu er out fyldt med data som er transformet af fft'en
+    data->out = (double *)malloc(sizeof(double) * FRAMES_PER_BUFFER); //Allocere memory til vores output.
+    data->plan = fftw_plan_r2r_1d(FRAMES_PER_BUFFER, in, data->out, FFTW_R2HC, FFTW_ESTIMATE); //laver en plan, vi bruger estimate siden patient og mesaure ikke virker lige pt.
+    fftw_execute(data->plan); //Udfører fft'en og fylder out med dataet.
 
 /*Find de to største frekvenser*/
     int storsteAmplitude = -1;
     int andenAmplitude = -1;
 
     for(int i = 0; i < FRAMES_PER_BUFFER; i++){ //Kun igennem halvdelen (/2) pga spejlning i resultatet.
-        if(out[i] * out[i] > out[storsteAmplitude] * out[storsteAmplitude]){ //magnitude, hvor kvadratroden er "sparet" væk
+        if(data->out[i] * data->out[i] > data->out[storsteAmplitude] * data->out[storsteAmplitude]){ //magnitude, hvor kvadratroden er "sparet" væk
             andenAmplitude = storsteAmplitude;
             storsteAmplitude = i;
         }
@@ -114,10 +115,10 @@ static int recordCallback(const void *inputBuffer, void *outputBuffer,
     // std::cout << std::endl;
     data->testCounter++;
     
-/*Stop FFT*/    
-    fftw_destroy_plan(plan);
-    fftw_free(out);
-    fftw_cleanup();
+// /*Stop FFT*/    
+//     fftw_destroy_plan(plan);
+//     fftw_free(out);
+//     fftw_cleanup();
 
 /*Retunerer finished, som enten retunere "paContinue" (forsæt optagelse) eller "paComplete" (færdig med optagelse).*/
     return data->finished;    
@@ -165,14 +166,19 @@ int main(void)
     std::cout << "\n=== Now recording!! ===\n" << std::endl;
 
     while ((err = Pa_IsStreamActive(stream)) == 1){ //Optager intil array er udfyldt
-        Pa_Sleep(10);
+        // Pa_Sleep(10);
     }
     checkErr(err);
 
     err = Pa_CloseStream(stream);
     checkErr(err);
 
-    std::cout << "\n === Done recording!! ===" << std::endl << std::endl;
+    std::cout << "\n=== Done recording!! ===\n" << std::endl;
+
+/*Stop FFT*/    
+    fftw_destroy_plan(data.plan);
+    fftw_free(data.out);
+    fftw_cleanup();
 
     Pa_Terminate();
     checkErr(err);
